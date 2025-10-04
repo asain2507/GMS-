@@ -1,12 +1,21 @@
 {
-  "name": "GMS - Garment Mockup Studio",
+  "name": "GMS",
   "short_name": "GMS",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#1b1b1b",
-  "theme_color": "#1b1b1b",
+  "background_color": "#009FDA",
+  "theme_color": "#009FDA",
+  "description": "Garmen Management System",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "icon/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
