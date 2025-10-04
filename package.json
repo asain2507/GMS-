@@ -9,10 +9,7 @@
   },
   "dependencies": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-rnd": "^10.3.8",
-    "lucide-react": "^0.376.0",
-    "html2canvas": "^1.4.1"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "vite": "^5.0.0"
