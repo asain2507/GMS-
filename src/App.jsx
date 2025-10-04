@@ -1,65 +1,65 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+/**
+ * GMS — Minimal, dependency-free version
+ * - Choose garment & size
+ * - Upload an image
+ * - Drag within the dashed print area
+ * - Resize by width (inches)
+ * - Pixels-per-inch slider to scale the preview
+ * - Export PNG of the preview area
+ */
+
+const GARMENTS = [
+  { id: "tee_ss", name: "Short Sleeve Tee", base: { wIn: 20, hIn: 28 }, print: { topIn: 3, wIn: 12, hIn: 16 } },
+  { id: "tee_ls", name: "Long Sleeve Tee", base: { wIn: 20, hIn: 29 }, print: { topIn: 3, wIn: 12, hIn: 16 } },
+  { id: "hoodie",  name: "Hoodie",          base: { wIn: 21, hIn: 28 }, print: { topIn: 4, wIn: 12, hIn: 14 } },
+  { id: "jacket",  name: "Jacket",          base: { wIn: 22, hIn: 29 }, print: { topIn: 4, wIn: 11, hIn: 13 } },
+  { id: "cap",     name: "Cap / Hat",       base: { wIn: 8,  hIn: 6  }, print: { topIn: 1.5, wIn: 4.25, hIn: 2 } },
+  { id: "beanie",  name: "Beanie",          base: { wIn: 9,  hIn: 7  }, print: { topIn: 1.25, wIn: 4, hIn: 2 } },
+  { id: "other",   name: "Other (Custom)",  base: { wIn: 20, hIn: 20 }, print: { topIn: 2, wIn: 10, hIn: 10 } },
+];
+
+const SIZES = [
+  { code: "XS", dW: -2 }, { code: "S", dW: -1 }, { code: "M", dW: 0 }, { code: "L", dW: 1 },
+  { code: "XL", dW: 2 },  { code: "2XL", dW: 3 }, { code: "3XL", dW: 4 }, { code: "4XL", dW: 5 },
+];
 
 export default function App() {
-  const [garment, setGarment] = useState("tee_ss");
-  const [size, setSize] = useState("M");
+  const [garmentId, setGarmentId] = useState("tee_ss");
+  const [sizeCode, setSizeCode] = useState("M");
+  const [ppi, setPpi] = useState(30);                   // pixels per inch (visual scale)
+  const [imgUrl, setImgUrl] = useState("");             // uploaded art (Object URL)
+  const [natural, setNatural] = useState({ w: 1, h: 1 }); // natural image size in px
+  const [widthIn, setWidthIn] = useState(10);           // graphic width (inches)
+  const [pos, setPos] = useState({ x: 0, y: 0 });       // top-left of graphic (px, in preview coords)
+  const draggingRef = useRef(null);                     // drag state
+  const areaRef = useRef(null);                         // print area dom
 
-  return (
-    <div style={{ fontFamily: "system-ui, Arial", padding: 16, maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>GMS (Garment Mockup Studio)</h1>
-      <p style={{ color: "#555", marginBottom: 16 }}>
-        Deployed test build. We’ll add the full features next—this confirms everything runs on Vercel.
-      </p>
+  const garment = useMemo(() => GARMENTS.find(g => g.id === garmentId), [garmentId]);
+  const size = useMemo(() => SIZES.find(s => s.code === sizeCode), [sizeCode]);
 
-      <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
-        <label>
-          <div style={{ fontSize: 12, color: "#666" }}>Garment</div>
-          <select value={garment} onChange={(e) => setGarment(e.target.value)} style={fieldStyle}>
-            <option value="tee_ss">Short Sleeve Tee</option>
-            <option value="tee_ls">Long Sleeve Tee</option>
-            <option value="hoodie">Hoodie</option>
-            <option value="jacket">Jacket</option>
-            <option value="cap">Cap / Hat</option>
-            <option value="beanie">Beanie / Toboggan</option>
-            <option value="other">Other (Custom)</option>
-          </select>
-        </label>
+  // Garment inches (rough height change as width grows)
+  const garmentIn = useMemo(() => {
+    const w = garment.base.wIn + (size?.dW ?? 0);
+    const h = garment.base.hIn + (size?.dW ?? 0) * 1.2;
+    return { wIn: w, hIn: h };
+  }, [garment, size]);
 
-        <label>
-          <div style={{ fontSize: 12, color: "#666" }}>Size</div>
-          <select value={size} onChange={(e) => setSize(e.target.value)} style={fieldStyle}>
-            <option>XS</option><option>S</option><option>M</option><option>L</option>
-            <option>XL</option><option>2XL</option><option>3XL</option><option>4XL</option>
-          </select>
-        </label>
-      </div>
+  // Pixel sizes for preview
+  const garmentPx = useMemo(() => ({ w: garmentIn.wIn * ppi, h: garmentIn.hIn * ppi }), [garmentIn, ppi]);
+  const printPx = useMemo(() => ({
+    x: (garmentIn.wIn - garment.print.wIn) / 2 * ppi,
+    y: garment.print.topIn * ppi,
+    w: garment.print.wIn * ppi,
+    h: garment.print.hIn * ppi,
+  }), [garmentIn, garment, ppi]);
 
-      <div style={box}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Preview</div>
-        <div style={{ border: "1px dashed #aaa", padding: 12, borderRadius: 8, background: "#f7f7f7" }}>
-          <div>Garment: <b>{labelMap[garment]}</b></div>
-          <div>Size: <b>{size}</b></div>
-          <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
-            (Next step: upload art, drag/resize in print area, export PNG.)
-          </div>
-        </div>
-      </div>
+  // Derived graphic pixel size from widthIn + aspect ratio
+  const graphicPx = useMemo(() => {
+    const targetW = Math.max(1, widthIn * ppi);
+    const ratio = natural.w / natural.h || 1;
+    return { w: targetW, h: targetW / ratio };
+  }, [widthIn, ppi, natural]);
 
-      <div style={{ fontSize: 11, color: "#666", marginTop: 16 }}>
-        Tip: Once it builds, open the live site in Chrome → “Add to Home screen”.
-      </div>
-    </div>
-  );
-}
-
-const fieldStyle = { width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc" };
-const box = { background: "#fff", borderRadius: 12, padding: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" };
-const labelMap = {
-  tee_ss: "Short Sleeve Tee",
-  tee_ls: "Long Sleeve Tee",
-  hoodie: "Hoodie",
-  jacket: "Jacket",
-  cap: "Cap / Hat",
-  beanie: "Beanie / Toboggan",
-  other: "Other (Custom)",
-};
+  // Center graphic whenever new image uploaded
