@@ -1,73 +1,65 @@
-import React, { useMemo, useRef, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { Rnd } from "react-rnd";
-import { Upload, Trash2, Image as ImageIcon, Ruler } from "lucide-react";
+import React, { useState } from "react";
 
-const GARMENTS = [
-  { id: "tee_ss", label: "Short Sleeve Tee", baseInches: { width: 20, height: 28 }, printArea: { top: 3, width: 12, height: 16 } },
-  { id: "tee_ls", label: "Long Sleeve Tee", baseInches: { width: 20, height: 29 }, printArea: { top: 3, width: 12, height: 16 } },
-  { id: "hoodie", label: "Hoodie", baseInches: { width: 21, height: 28 }, printArea: { top: 4, width: 12, height: 14 } },
-  { id: "jacket", label: "Jacket", baseInches: { width: 22, height: 29 }, printArea: { top: 4, width: 11, height: 13 } },
-  { id: "cap", label: "Cap / Hat", baseInches: { width: 8, height: 6 }, printArea: { top: 1.5, width: 4.25, height: 2 } },
-  { id: "beanie", label: "Beanie / Toboggan", baseInches: { width: 9, height: 7 }, printArea: { top: 1.25, width: 4, height: 2 } },
-  { id: "other", label: "Other (Custom)", baseInches: { width: 20, height: 20 }, printArea: { top: 2, width: 10, height: 10 } },
-];const SIZES = [
-  { code: "XS", widthDelta: -2 },
-  { code: "S", widthDelta: -1 },
-  { code: "M", widthDelta: 0 },
-  { code: "L", widthDelta: 1 },
-  { code: "XL", widthDelta: 2 },
-  { code: "2XL", widthDelta: 3 },
-  { code: "3XL", widthDelta: 4 },
-  { code: "4XL", widthDelta: 5 },
-];
+export default function App() {
+  const [garment, setGarment] = useState("tee_ss");
+  const [size, setSize] = useState("M");
 
-function useImage(url) {
-  const [img, setImg] = useState(null);
-  React.useEffect(() => {
-    if (!url) return;
-    const i = new Image();
-    i.crossOrigin = "anonymous";
-    i.onload = () => setImg(i);
-    i.src = url;
-  }, [url]);
-  return img;
-}export default function GarmentMockupStudio() {
-  const [garmentId, setGarmentId] = useState("tee_ss");
-  const [sizeCode, setSizeCode] = useState("M");
-  const [ppi, setPpi] = useState(30);
-  const [library, setLibrary] = useState([]);
-  const [activeId, setActiveId] = useState(null);
-  const [graphicInches, setGraphicInches] = useState(10);
-  const [lockAspect, setLockAspect] = useState(true);
-  const [snap, setSnap] = useState(true);
-  const stageRef = useRef(null);
+  return (
+    <div style={{ fontFamily: "system-ui, Arial", padding: 16, maxWidth: 720, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>GMS (Garment Mockup Studio)</h1>
+      <p style={{ color: "#555", marginBottom: 16 }}>
+        Deployed test build. We’ll add the full features next—this confirms everything runs on Vercel.
+      </p>
 
-  const garment = useMemo(() => GARMENTS.find(g => g.id === garmentId), [garmentId]);
-  const size = useMemo(() => SIZES.find(s => s.code === sizeCode), [sizeCode]);
+      <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
+        <label>
+          <div style={{ fontSize: 12, color: "#666" }}>Garment</div>
+          <select value={garment} onChange={(e) => setGarment(e.target.value)} style={fieldStyle}>
+            <option value="tee_ss">Short Sleeve Tee</option>
+            <option value="tee_ls">Long Sleeve Tee</option>
+            <option value="hoodie">Hoodie</option>
+            <option value="jacket">Jacket</option>
+            <option value="cap">Cap / Hat</option>
+            <option value="beanie">Beanie / Toboggan</option>
+            <option value="other">Other (Custom)</option>
+          </select>
+        </label>
 
-  const garmentInches = useMemo(() => {
-    const w = garment.baseInches.width + (size?.widthDelta ?? 0);
-    const h = garment.baseInches.height + (size?.widthDelta ?? 0) * 1.2;
-    return { w, h };
-  }, [garment, size]);
+        <label>
+          <div style={{ fontSize: 12, color: "#666" }}>Size</div>
+          <select value={size} onChange={(e) => setSize(e.target.value)} style={fieldStyle}>
+            <option>XS</option><option>S</option><option>M</option><option>L</option>
+            <option>XL</option><option>2XL</option><option>3XL</option><option>4XL</option>
+          </select>
+        </label>
+      </div>
 
-  const garmentPx = useMemo(() => ({ w: garmentInches.w * ppi, h: garmentInches.h * ppi }), [garmentInches, ppi]);
-  const printAreaPx = useMemo(() => ({
-    x: (garmentInches.w - garment.printArea.width) / 2 * ppi,
-    y: garment.printArea.top * ppi,
-    w: garment.printArea.width * ppi,
-    h: garment.printArea.height * ppi,
-  }), [garmentInches, garment, ppi]);return (
-    <div className="p-4 text-center">
-      <h1 className="text-xl font-bold mb-4">GMS (Garment Mockup Studio)</h1>
-      <p>Coming soon — this placeholder confirms your app structure is working!</p>
-      <p className="text-sm text-gray-500 mt-2">Once hosted, you’ll upload graphics and preview placements here.</p>
+      <div style={box}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Preview</div>
+        <div style={{ border: "1px dashed #aaa", padding: 12, borderRadius: 8, background: "#f7f7f7" }}>
+          <div>Garment: <b>{labelMap[garment]}</b></div>
+          <div>Size: <b>{size}</b></div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
+            (Next step: upload art, drag/resize in print area, export PNG.)
+          </div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11, color: "#666", marginTop: 16 }}>
+        Tip: Once it builds, open the live site in Chrome → “Add to Home screen”.
+      </div>
     </div>
   );
 }
+
+const fieldStyle = { width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc" };
+const box = { background: "#fff", borderRadius: 12, padding: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" };
+const labelMap = {
+  tee_ss: "Short Sleeve Tee",
+  tee_ls: "Long Sleeve Tee",
+  hoodie: "Hoodie",
+  jacket: "Jacket",
+  cap: "Cap / Hat",
+  beanie: "Beanie / Toboggan",
+  other: "Other (Custom)",
+};
