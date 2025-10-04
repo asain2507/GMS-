@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * GMS — minimal, dependency-free
- * - choose garment & size
- * - upload image
- * - drag within dashed print area
- * - resize via handle or by width (inches)
- * - PPI slider scales the preview
- * - export PNG snapshot
+ * GMS — Improved silhouettes + color picker
+ * - Realistic SVG outlines for Tee / LS Tee / Hoodie / Jacket / Cap / Beanie
+ * - Garment color picker (light/medium/dark)
+ * - Same features: upload, drag, resize (inches), PPI, export PNG
  */
 
 const GARMENTS = [
@@ -25,27 +22,35 @@ const SIZES = [
   { code: "XL", dW: 2 },  { code: "2XL", dW: 3 }, { code: "3XL", dW: 4 }, { code: "4XL", dW: 5 },
 ];
 
+const GARMENT_COLORS = [
+  { id: "light",  name: "Light Heather", fill: "#e9ecef", shadow: "#d8dde3" },
+  { id: "mid",    name: "Mid Gray",      fill: "#cbd3da", shadow: "#b7c1cb" },
+  { id: "dark",   name: "Charcoal",      fill: "#9aa7b4", shadow: "#8896a3" }
+];
+
 export default function App() {
   const [garmentId, setGarmentId] = useState("tee_ss");
   const [sizeCode, setSizeCode] = useState("M");
-  const [ppi, setPpi] = useState(30);               // pixels-per-inch (preview scale)
-  const [imgUrl, setImgUrl] = useState("");         // uploaded image object URL
+  const [colorId, setColorId] = useState("light");
+  const [ppi, setPpi] = useState(30);
+  const [imgUrl, setImgUrl] = useState("");
   const [natural, setNatural] = useState({ w: 1, h: 1 });
   const [widthIn, setWidthIn] = useState(10);
-  const [pos, setPos] = useState({ x: 0, y: 0 });   // top-left of image in px (preview coords)
-  const draggingRef = useRef(null);                 // drag/resize state
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const draggingRef = useRef(null);
 
   const garment = useMemo(() => GARMENTS.find(g => g.id === garmentId), [garmentId]);
+  const color = useMemo(() => GARMENT_COLORS.find(c => c.id === colorId)!, [colorId]);
   const size = useMemo(() => SIZES.find(s => s.code === sizeCode), [sizeCode]);
 
-  // garment size (inches) changes with sizeCode
+  // garment size (inches) by size code
   const garmentIn = useMemo(() => {
     const w = garment.base.wIn + (size?.dW ?? 0);
     const h = garment.base.hIn + (size?.dW ?? 0) * 1.2;
     return { wIn: w, hIn: h };
   }, [garment, size]);
 
-  // convert to preview pixels
+  // preview pixels
   const garmentPx = useMemo(() => ({ w: garmentIn.wIn * ppi, h: garmentIn.hIn * ppi }), [garmentIn, ppi]);
   const printPx = useMemo(() => ({
     x: (garmentIn.wIn - garment.print.wIn) / 2 * ppi,
@@ -54,14 +59,14 @@ export default function App() {
     h: garment.print.hIn * ppi,
   }), [garmentIn, garment, ppi]);
 
-  // desired graphic pixel size from widthIn & image ratio
+  // graphic in pixels (from inches + image ratio)
   const graphicPx = useMemo(() => {
     const targetW = Math.max(1, widthIn * ppi);
     const ratio = natural.w / natural.h || 1;
     return { w: targetW, h: targetW / ratio };
   }, [widthIn, ppi, natural]);
 
-  // center image when uploaded or when size changes
+  // center image when uploaded or when dimensions change
   useEffect(() => {
     if (!imgUrl) return;
     const nx = printPx.x + (printPx.w - graphicPx.w) / 2;
@@ -79,14 +84,10 @@ export default function App() {
     i.src = url;
   }
 
-  // pointer helpers (mouse+touch)
-  function getPoint(e) {
-    if ("touches" in e && e.touches.length) {
-      const t = e.touches[0];
-      return { x: t.clientX, y: t.clientY };
-    }
-    return { x: e.clientX, y: e.clientY };
-  }
+  // pointer helpers
+  const getPoint = (e) => ("touches" in e && e.touches.length)
+    ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    : { x: e.clientX, y: e.clientY };
 
   // drag
   function startDrag(e) {
@@ -105,7 +106,6 @@ export default function App() {
     const { startX, startY, origX, origY } = draggingRef.current;
     let nx = origX + (p.x - startX);
     let ny = origY + (p.y - startY);
-    // constrain to print area
     nx = Math.min(Math.max(nx, printPx.x), printPx.x + printPx.w - graphicPx.w);
     ny = Math.min(Math.max(ny, printPx.y), printPx.y + printPx.h - graphicPx.h);
     setPos({ x: nx, y: ny });
@@ -157,17 +157,16 @@ export default function App() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // garment silhouette
-    ctx.fillStyle = "#e5e7eb";
-    drawSilhouette(ctx, garmentId, canvas.width, canvas.height);
+    drawSilhouette(ctx, garmentId, canvas.width, canvas.height, color);
 
-    // print area guide
-    ctx.strokeStyle = "#9ca3af";
+    // print area
+    ctx.strokeStyle = "rgba(60,60,60,.55)";
     ctx.setLineDash([8, 6]);
     ctx.lineWidth = 2;
     ctx.strokeRect(printPx.x, printPx.y, printPx.w, printPx.h);
     ctx.setLineDash([]);
 
-    // image
+    // art
     if (imgUrl) {
       const img = new Image();
       img.crossOrigin = "anonymous";
@@ -202,6 +201,13 @@ export default function App() {
         </div>
 
         <div style={row}>
+          <label style={label}>Garment color</label>
+          <select value={colorId} onChange={(e)=>setColorId(e.target.value)} style={select}>
+            {GARMENT_COLORS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        <div style={row}>
           <label style={label}>Pixels per inch</label>
           <input type="range" min="16" max="60" value={ppi} onChange={(e)=>setPpi(Number(e.target.value))} style={{ flex: 1 }} />
           <span style={mono}>{ppi}</span>
@@ -224,10 +230,10 @@ export default function App() {
         <button onClick={exportPNG} style={btn}>Export PNG</button>
       </div>
 
-      {/* preview stage */}
+      {/* preview */}
       <div style={{ overflowX: "auto" }}>
         <div style={{ ...stage, width: garmentPx.w, height: garmentPx.h }}>
-          <SilhouetteSVG garmentId={garmentId} />
+          <SilhouetteSVG garmentId={garmentId} color={color} />
 
           {/* center guide */}
           <div style={{ position:"absolute", left: garmentPx.w/2, top:0, width:1, height:"100%", background:"rgba(0,0,0,0.06)" }} />
@@ -276,75 +282,156 @@ export default function App() {
   );
 }
 
-/* ---- visuals ---- */
-function SilhouetteSVG({ garmentId }) {
-  if (garmentId === "cap") return (
-    <svg viewBox="0 0 200 150" style={sil}>
-      <rect width="100%" height="100%" fill="#f3f4f6" />
-      <path d="M30 90c0-30 25-55 55-55s55 25 55 55" fill="#e5e7eb" />
-      <path d="M110 90h60c0 10-20 25-60 25" fill="#d1d5db" />
-    </svg>
-  );
-  if (garmentId === "beanie") return (
-    <svg viewBox="0 0 200 200" style={sil}>
-      <rect width="100%" height="100%" fill="#f3f4f6" />
-      <rect x="40" y="70" width="120" height="80" rx="20" fill="#e5e7eb" />
-      <rect x="35" y="140" width="130" height="25" rx="8" fill="#d1d5db" />
-    </svg>
-  );
-  if (garmentId === "hoodie") return (
-    <svg viewBox="0 0 300 400" style={sil}>
-      <rect width="100%" height="100%" fill="#f3f4f6" />
-      <path d="M80 40c30-30 110-30 140 0l30 60v220l-40 40H90l-40-40V100z" fill="#e5e7eb" />
-      <path d="M110 60c20-10 60-10 80 0l10 20-50 20-50-20z" fill="#d1d5db" />
-    </svg>
-  );
-  if (garmentId === "jacket") return (
-    <svg viewBox="0 0 300 400" style={sil}>
-      <rect width="100%" height="100%" fill="#f3f4f6" />
-      <path d="M70 60l60-30h40l60 30v260l-40 40H110l-40-40z" fill="#e5e7eb" />
-      <rect x="145" y="80" width="10" height="240" fill="#d1d5db" />
-    </svg>
-  );
-  // tees default
+/* ---------- visuals ---------- */
+
+function SilhouetteSVG({ garmentId, color }) {
+  // Better, more realistic outlines. Scaled to the stage via viewBox.
+  const base = color.fill;
+  const shade = color.shadow;
+
+  if (garmentId === "cap") {
+    return (
+      <svg viewBox="0 0 300 260" style={sil}>
+        <rect width="100%" height="100%" fill="transparent" />
+        {/* crown */}
+        <path d="M45 160c0-62 48-112 105-112s105 50 105 112" fill={base}/>
+        {/* brim */}
+        <path d="M160 160h110c0 20-42 44-120 44-40 0-66-6-89-14 12-12 38-23 99-30z" fill={shade}/>
+      </svg>
+    );
+  }
+
+  if (garmentId === "beanie") {
+    return (
+      <svg viewBox="0 0 300 380" style={sil}>
+        <rect width="100%" height="100%" fill="transparent" />
+        <rect x="60" y="120" width="180" height="140" rx="40" fill={base}/>
+        <rect x="50" y="240" width="200" height="50" rx="12" fill={shade}/>
+      </svg>
+    );
+  }
+
+  if (garmentId === "hoodie") {
+    return (
+      <svg viewBox="0 0 360 520" style={sil}>
+        <rect width="100%" height="100%" fill="transparent" />
+        {/* body */}
+        <path d="M70 120l40-60h140l40 60v260l-40 60H110l-40-60V120z" fill={base}/>
+        {/* hood */}
+        <path d="M110 60c30-25 110-25 140 0l10 25-80 35-80-35z" fill={shade}/>
+        {/* pocket hint */}
+        <rect x="130" y="300" width="100" height="40" rx="10" fill={shade} opacity="0.35"/>
+      </svg>
+    );
+  }
+
+  if (garmentId === "jacket") {
+    return (
+      <svg viewBox="0 0 360 520" style={sil}>
+        <rect width="100%" height="100%" fill="transparent" />
+        <path d="M60 120l70-40h100l70 40v260l-40 60H100l-40-60V120z" fill={base}/>
+        <rect x="178" y="130" width="4" height="250" fill={shade}/>
+        <rect x="120" y="200" width="120" height="12" rx="6" fill={shade} opacity="0.4"/>
+      </svg>
+    );
+  }
+
+  if (garmentId === "tee_ls") {
+    return (
+      <svg viewBox="0 0 360 520" style={sil}>
+        <rect width="100%" height="100%" fill="transparent" />
+        {/* torso */}
+        <path d="M80 140l60-35h80l60 35-18 40-32-8v240H130V172l-32 8z" fill={base}/>
+        {/* sleeves */}
+        <path d="M80 140l-40 30v200l30 30h30V180l35-20z" fill={shade}/>
+        <path d="M280 140l40 30v200l-30 30h-30V180l-35-20z" fill={shade}/>
+      </svg>
+    );
+  }
+
+  // short sleeve tee default
   return (
-    <svg viewBox="0 0 300 400" style={sil}>
-      <rect width="100%" height="100%" fill="#f3f4f6" />
-      <path d="M60 60l60-30h60l60 30-20 40-40-10v250H120V90l-40 10z" fill="#e5e7eb" />
+    <svg viewBox="0 0 360 520" style={sil}>
+      <rect width="100%" height="100%" fill="transparent" />
+      <path d="M80 140l60-35h80l60 35-18 40-32-8v240H130V172l-32 8z" fill={base}/>
+      {/* short sleeves */}
+      <path d="M80 140l-40 30 28 32 64-32z" fill={shade}/>
+      <path d="M280 140l40 30-28 32-64-32z" fill={shade}/>
     </svg>
   );
 }
 
-function drawSilhouette(ctx, garmentId, W, H) {
-  ctx.fillStyle = "#e5e7eb";
+function drawSilhouette(ctx, garmentId, W, H, color) {
+  // Canvas equivalents (simplified) for export image.
+  const base = color.fill;
+  const shade = color.shadow;
+  ctx.save();
+  ctx.fillStyle = base;
+
+  const r = (n) => Math.round(n); // tiny helper
+
+  ctx.clearRect(0,0,W,H);
+  // Use same proportions as SVGs
   if (garmentId === "cap") {
+    // crown
     ctx.beginPath();
-    ctx.ellipse(W*0.35, H*0.35, W*0.18, H*0.18, 0, 0, Math.PI, true);
+    ctx.moveTo(r(W*0.15), r(H*0.62));
+    ctx.quadraticCurveTo(r(W*0.15), r(H*0.18), r(W*0.5), r(H*0.18));
+    ctx.quadraticCurveTo(r(W*0.85), r(H*0.18), r(W*0.85), r(H*0.62));
+    ctx.lineTo(r(W*0.15), r(H*0.62));
     ctx.fill();
-    ctx.fillStyle = "#d1d5db";
-    ctx.fillRect(W*0.55, H*0.55, W*0.25, H*0.06);
-    return;
+    // brim
+    ctx.fillStyle = shade;
+    ctx.beginPath();
+    ctx.moveTo(r(W*0.53), r(H*0.62));
+    ctx.lineTo(r(W*0.93), r(H*0.62));
+    ctx.bezierCurveTo(r(W*0.93), r(H*0.75), r(W*0.6), r(H*0.86), r(W*0.35), r(H*0.86));
+    ctx.lineTo(r(W*0.2), r(H*0.82));
+    ctx.closePath(); ctx.fill();
+    ctx.restore(); return;
   }
+
   if (garmentId === "beanie") {
-    ctx.fillRect(W*0.15, H*0.25, W*0.7, H*0.35);
-    ctx.fillStyle = "#d1d5db";
-    ctx.fillRect(W*0.12, H*0.55, W*0.76, H*0.06);
-    return;
+    ctx.fillRect(r(W*0.2), r(H*0.32), r(W*0.6), r(H*0.37));
+    ctx.fillStyle = shade;
+    ctx.fillRect(r(W*0.17), r(H*0.63), r(W*0.66), r(H*0.09));
+    ctx.restore(); return;
   }
+
   if (garmentId === "hoodie") {
-    roundRect(ctx, W*0.2, H*0.1, W*0.6, H*0.7, 20, "#e5e7eb");
-    ctx.fillStyle = "#d1d5db";
-    ctx.fillRect(W*0.35, H*0.2, W*0.3, H*0.06);
-    return;
+    // body
+    roundRect(ctx, W*0.2, H*0.23, W*0.6, H*0.6, 18, base);
+    // hood & pocket
+    ctx.fillStyle = shade;
+    roundRect(ctx, W*0.3, H*0.15, W*0.4, H*0.07, 8, shade);
+    roundRect(ctx, W*0.36, H*0.58, W*0.28, H*0.08, 10, `rgba(0,0,0,0.15)`);
+    ctx.restore(); return;
   }
+
   if (garmentId === "jacket") {
-    roundRect(ctx, W*0.18, H*0.12, W*0.64, H*0.7, 10, "#e5e7eb");
-    ctx.fillStyle = "#d1d5db";
-    ctx.fillRect(W*0.48, H*0.2, 4, H*0.6);
-    return;
+    roundRect(ctx, W*0.17, H*0.23, W*0.66, H*0.6, 12, base);
+    ctx.fillStyle = shade;
+    ctx.fillRect(r(W*0.495), r(H*0.26), 4, r(H*0.5));
+    ctx.fillStyle = `rgba(0,0,0,0.15)`;
+    roundRect(ctx, W*0.3, H*0.42, W*0.4, H*0.025, 4, `rgba(0,0,0,0.15)`);
+    ctx.restore(); return;
   }
-  // tee default
-  roundRect(ctx, W*0.18, H*0.12, W*0.64, H*0.72, 12, "#e5e7eb");
+
+  if (garmentId === "tee_ls") {
+    roundRect(ctx, W*0.2, H*0.27, W*0.6, H*0.55, 10, base);
+    ctx.fillStyle = shade;
+    // sleeves
+    roundRect(ctx, W*0.08, H*0.33, W*0.18, H*0.42, 10, shade);
+    roundRect(ctx, W*0.74, H*0.33, W*0.18, H*0.42, 10, shade);
+    ctx.restore(); return;
+  }
+
+  // short sleeve tee default
+  roundRect(ctx, W*0.2, H*0.27, W*0.6, H*0.55, 10, base);
+  ctx.fillStyle = shade;
+  roundRect(ctx, W*0.08, H*0.32, W*0.18, H*0.18, 8, shade);
+  roundRect(ctx, W*0.74, H*0.32, W*0.18, H*0.18, 8, shade);
+  ctx.restore();
 }
 
 function roundRect(ctx, x, y, w, h, r, fill) {
@@ -366,7 +453,7 @@ function downloadCanvas(canvas, filename) {
   a.click();
 }
 
-/* --- styles --- */
+/* ---------- styles ---------- */
 const page = { fontFamily: "system-ui, Arial", padding: 12, maxWidth: 900, margin: "0 auto" };
 const h1 = { fontSize: 22, fontWeight: 700, margin: "4px 0 10px 0" };
 const panel = { background: "#fff", borderRadius: 12, padding: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", marginBottom: 12 };
