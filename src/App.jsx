@@ -1,10 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * GMS — Improved silhouettes + color picker
- * - Realistic SVG outlines for Tee / LS Tee / Hoodie / Jacket / Cap / Beanie
- * - Garment color picker (light/medium/dark)
- * - Same features: upload, drag, resize (inches), PPI, export PNG
+ * GMS — Improved silhouettes + color picker (JS only)
  */
 
 const GARMENTS = [
@@ -40,17 +37,16 @@ export default function App() {
   const draggingRef = useRef(null);
 
   const garment = useMemo(() => GARMENTS.find(g => g.id === garmentId), [garmentId]);
-  const color = useMemo(() => GARMENT_COLORS.find(c => c.id === colorId)!, [colorId]);
+  // FIX: no TypeScript "!" — use a safe fallback
+  const color = useMemo(() => GARMENT_COLORS.find(c => c.id === colorId) || GARMENT_COLORS[0], [colorId]);
   const size = useMemo(() => SIZES.find(s => s.code === sizeCode), [sizeCode]);
 
-  // garment size (inches) by size code
   const garmentIn = useMemo(() => {
     const w = garment.base.wIn + (size?.dW ?? 0);
     const h = garment.base.hIn + (size?.dW ?? 0) * 1.2;
     return { wIn: w, hIn: h };
   }, [garment, size]);
 
-  // preview pixels
   const garmentPx = useMemo(() => ({ w: garmentIn.wIn * ppi, h: garmentIn.hIn * ppi }), [garmentIn, ppi]);
   const printPx = useMemo(() => ({
     x: (garmentIn.wIn - garment.print.wIn) / 2 * ppi,
@@ -59,14 +55,12 @@ export default function App() {
     h: garment.print.hIn * ppi,
   }), [garmentIn, garment, ppi]);
 
-  // graphic in pixels (from inches + image ratio)
   const graphicPx = useMemo(() => {
     const targetW = Math.max(1, widthIn * ppi);
     const ratio = natural.w / natural.h || 1;
     return { w: targetW, h: targetW / ratio };
   }, [widthIn, ppi, natural]);
 
-  // center image when uploaded or when dimensions change
   useEffect(() => {
     if (!imgUrl) return;
     const nx = printPx.x + (printPx.w - graphicPx.w) / 2;
@@ -84,12 +78,10 @@ export default function App() {
     i.src = url;
   }
 
-  // pointer helpers
   const getPoint = (e) => ("touches" in e && e.touches.length)
     ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
     : { x: e.clientX, y: e.clientY };
 
-  // drag
   function startDrag(e) {
     e.preventDefault();
     const p = getPoint(e);
@@ -118,7 +110,6 @@ export default function App() {
     window.removeEventListener("touchend", endDrag);
   }
 
-  // resize via handle
   function startResize(e) {
     e.stopPropagation();
     e.preventDefault();
@@ -145,28 +136,23 @@ export default function App() {
     window.removeEventListener("touchend", endResize);
   }
 
-  // export snapshot
   function exportPNG() {
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(garmentPx.w);
     canvas.height = Math.round(garmentPx.h);
     const ctx = canvas.getContext("2d");
 
-    // background
     ctx.fillStyle = "#f3f4f6";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // garment silhouette
     drawSilhouette(ctx, garmentId, canvas.width, canvas.height, color);
 
-    // print area
     ctx.strokeStyle = "rgba(60,60,60,.55)";
     ctx.setLineDash([8, 6]);
     ctx.lineWidth = 2;
     ctx.strokeRect(printPx.x, printPx.y, printPx.w, printPx.h);
     ctx.setLineDash([]);
 
-    // art
     if (imgUrl) {
       const img = new Image();
       img.crossOrigin = "anonymous";
@@ -184,7 +170,6 @@ export default function App() {
     <div style={page}>
       <h1 style={h1}>GMS</h1>
 
-      {/* controls */}
       <div style={panel}>
         <div style={row}>
           <label style={label}>Garment</label>
@@ -230,48 +215,20 @@ export default function App() {
         <button onClick={exportPNG} style={btn}>Export PNG</button>
       </div>
 
-      {/* preview */}
       <div style={{ overflowX: "auto" }}>
         <div style={{ ...stage, width: garmentPx.w, height: garmentPx.h }}>
           <SilhouetteSVG garmentId={garmentId} color={color} />
-
-          {/* center guide */}
           <div style={{ position:"absolute", left: garmentPx.w/2, top:0, width:1, height:"100%", background:"rgba(0,0,0,0.06)" }} />
-
-          {/* print area */}
-          <div
-            style={{ position:"absolute", left: printPx.x, top: printPx.y, width: printPx.w, height: printPx.h,
-                     border: "2px dashed rgba(100,100,100,0.55)", borderRadius: 8 }}
-          />
-
-          {/* image layer */}
+          <div style={{ position:"absolute", left: printPx.x, top: printPx.y, width: printPx.w, height: printPx.h, border: "2px dashed rgba(100,100,100,0.55)", borderRadius: 8 }} />
           {imgUrl && (
-            <div
-              onMouseDown={startDrag}
-              onTouchStart={startDrag}
-              style={{ position:"absolute", left: pos.x, top: pos.y, width: graphicPx.w, height: graphicPx.h,
-                       touchAction: "none", cursor: "move" }}
-            >
-              <img
-                src={imgUrl}
-                alt="art"
-                style={{ width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", userSelect:"none" }}
-              />
-              {/* resize handle */}
-              <div
-                onMouseDown={startResize}
-                onTouchStart={startResize}
-                style={{ position:"absolute", right:-8, bottom:-8, width:20, height:20,
-                         background:"#009FDA", borderRadius:10, border:"2px solid white",
-                         boxShadow:"0 1px 4px rgba(0,0,0,0.25)", touchAction:"none" }}
-                title="Drag to resize"
-              />
+            <div onMouseDown={startDrag} onTouchStart={startDrag} style={{ position:"absolute", left: pos.x, top: pos.y, width: graphicPx.w, height: graphicPx.h, touchAction: "none", cursor: "move" }}>
+              <img src={imgUrl} alt="art" style={{ width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", userSelect:"none" }} />
+              <div onMouseDown={startResize} onTouchStart={startResize} style={{ position:"absolute", right:-8, bottom:-8, width:20, height:20, background:"#009FDA", borderRadius:10, border:"2px solid white", boxShadow:"0 1px 4px rgba(0,0,0,0.25)", touchAction:"none" }} title="Drag to resize" />
             </div>
           )}
         </div>
       </div>
 
-      {/* readouts */}
       <div style={readouts}>
         <Info label="Garment (in)">{garmentIn.wIn.toFixed(1)} × {garmentIn.hIn.toFixed(1)}</Info>
         <Info label="Print Area (in)">{garment.print.wIn.toFixed(1)} × {garment.print.hIn.toFixed(1)}</Info>
@@ -285,7 +242,6 @@ export default function App() {
 /* ---------- visuals ---------- */
 
 function SilhouetteSVG({ garmentId, color }) {
-  // Better, more realistic outlines. Scaled to the stage via viewBox.
   const base = color.fill;
   const shade = color.shadow;
 
@@ -293,9 +249,7 @@ function SilhouetteSVG({ garmentId, color }) {
     return (
       <svg viewBox="0 0 300 260" style={sil}>
         <rect width="100%" height="100%" fill="transparent" />
-        {/* crown */}
         <path d="M45 160c0-62 48-112 105-112s105 50 105 112" fill={base}/>
-        {/* brim */}
         <path d="M160 160h110c0 20-42 44-120 44-40 0-66-6-89-14 12-12 38-23 99-30z" fill={shade}/>
       </svg>
     );
@@ -315,11 +269,8 @@ function SilhouetteSVG({ garmentId, color }) {
     return (
       <svg viewBox="0 0 360 520" style={sil}>
         <rect width="100%" height="100%" fill="transparent" />
-        {/* body */}
         <path d="M70 120l40-60h140l40 60v260l-40 60H110l-40-60V120z" fill={base}/>
-        {/* hood */}
         <path d="M110 60c30-25 110-25 140 0l10 25-80 35-80-35z" fill={shade}/>
-        {/* pocket hint */}
         <rect x="130" y="300" width="100" height="40" rx="10" fill={shade} opacity="0.35"/>
       </svg>
     );
@@ -340,9 +291,7 @@ function SilhouetteSVG({ garmentId, color }) {
     return (
       <svg viewBox="0 0 360 520" style={sil}>
         <rect width="100%" height="100%" fill="transparent" />
-        {/* torso */}
         <path d="M80 140l60-35h80l60 35-18 40-32-8v240H130V172l-32 8z" fill={base}/>
-        {/* sleeves */}
         <path d="M80 140l-40 30v200l30 30h30V180l35-20z" fill={shade}/>
         <path d="M280 140l40 30v200l-30 30h-30V180l-35-20z" fill={shade}/>
       </svg>
@@ -354,7 +303,6 @@ function SilhouetteSVG({ garmentId, color }) {
     <svg viewBox="0 0 360 520" style={sil}>
       <rect width="100%" height="100%" fill="transparent" />
       <path d="M80 140l60-35h80l60 35-18 40-32-8v240H130V172l-32 8z" fill={base}/>
-      {/* short sleeves */}
       <path d="M80 140l-40 30 28 32 64-32z" fill={shade}/>
       <path d="M280 140l40 30-28 32-64-32z" fill={shade}/>
     </svg>
@@ -362,25 +310,22 @@ function SilhouetteSVG({ garmentId, color }) {
 }
 
 function drawSilhouette(ctx, garmentId, W, H, color) {
-  // Canvas equivalents (simplified) for export image.
   const base = color.fill;
   const shade = color.shadow;
   ctx.save();
   ctx.fillStyle = base;
 
-  const r = (n) => Math.round(n); // tiny helper
+  const r = (n) => Math.round(n);
 
   ctx.clearRect(0,0,W,H);
-  // Use same proportions as SVGs
+
   if (garmentId === "cap") {
-    // crown
     ctx.beginPath();
     ctx.moveTo(r(W*0.15), r(H*0.62));
     ctx.quadraticCurveTo(r(W*0.15), r(H*0.18), r(W*0.5), r(H*0.18));
     ctx.quadraticCurveTo(r(W*0.85), r(H*0.18), r(W*0.85), r(H*0.62));
     ctx.lineTo(r(W*0.15), r(H*0.62));
     ctx.fill();
-    // brim
     ctx.fillStyle = shade;
     ctx.beginPath();
     ctx.moveTo(r(W*0.53), r(H*0.62));
@@ -391,7 +336,7 @@ function drawSilhouette(ctx, garmentId, W, H, color) {
     ctx.restore(); return;
   }
 
-  if (garmentId === "beanie") {
+  if (garmentId === "beanie")) {
     ctx.fillRect(r(W*0.2), r(H*0.32), r(W*0.6), r(H*0.37));
     ctx.fillStyle = shade;
     ctx.fillRect(r(W*0.17), r(H*0.63), r(W*0.66), r(H*0.09));
@@ -399,9 +344,7 @@ function drawSilhouette(ctx, garmentId, W, H, color) {
   }
 
   if (garmentId === "hoodie") {
-    // body
     roundRect(ctx, W*0.2, H*0.23, W*0.6, H*0.6, 18, base);
-    // hood & pocket
     ctx.fillStyle = shade;
     roundRect(ctx, W*0.3, H*0.15, W*0.4, H*0.07, 8, shade);
     roundRect(ctx, W*0.36, H*0.58, W*0.28, H*0.08, 10, `rgba(0,0,0,0.15)`);
@@ -412,7 +355,6 @@ function drawSilhouette(ctx, garmentId, W, H, color) {
     roundRect(ctx, W*0.17, H*0.23, W*0.66, H*0.6, 12, base);
     ctx.fillStyle = shade;
     ctx.fillRect(r(W*0.495), r(H*0.26), 4, r(H*0.5));
-    ctx.fillStyle = `rgba(0,0,0,0.15)`;
     roundRect(ctx, W*0.3, H*0.42, W*0.4, H*0.025, 4, `rgba(0,0,0,0.15)`);
     ctx.restore(); return;
   }
@@ -420,7 +362,6 @@ function drawSilhouette(ctx, garmentId, W, H, color) {
   if (garmentId === "tee_ls") {
     roundRect(ctx, W*0.2, H*0.27, W*0.6, H*0.55, 10, base);
     ctx.fillStyle = shade;
-    // sleeves
     roundRect(ctx, W*0.08, H*0.33, W*0.18, H*0.42, 10, shade);
     roundRect(ctx, W*0.74, H*0.33, W*0.18, H*0.42, 10, shade);
     ctx.restore(); return;
