@@ -337,3 +337,80 @@ function drawSilhouette(ctx, garmentId, W, H, color) {
   if (garmentId === "beanie") {                   // <-- fixed: no stray parenthesis
     ctx.fillRect(r(W*0.2), r(H*0.32), r(W*0.6), r(H*0.37));
     ctx.fillStyle = shade;
+    ctx.fillRect(r(W*0.17), r(H*0.63), r(W*0.66), r(H*0.09));
+    ctx.restore(); return;
+  }
+
+  if (garmentId === "hoodie") {
+    roundRect(ctx, W*0.2, H*0.23, W*0.6, H*0.6, 18, base);
+    ctx.fillStyle = shade;
+    roundRect(ctx, W*0.3, H*0.15, W*0.4, H*0.07, 8, shade);
+    roundRect(ctx, W*0.36, H*0.58, W*0.28, H*0.08, 10, `rgba(0,0,0,0.15)`);
+    ctx.restore(); return;
+  }
+
+  if (garmentId === "jacket") {
+    roundRect(ctx, W*0.17, H*0.23, W*0.66, H*0.6, 12, base);
+    ctx.fillStyle = shade;
+    ctx.fillRect(r(W*0.495), r(H*0.26), 4, r(H*0.5));
+    roundRect(ctx, W*0.3, H*0.42, W*0.4, H*0.025, 4, `rgba(0,0,0,0.15)`);
+    ctx.restore(); return;
+  }
+
+  if (garmentId === "tee_ls") {
+    roundRect(ctx, W*0.2, H*0.27, W*0.6, H*0.55, 10, base);
+    ctx.fillStyle = shade;
+    roundRect(ctx, W*0.08, H*0.33, W*0.18, H*0.42, 10, shade);
+    roundRect(ctx, W*0.74, H*0.33, W*0.18, H*0.42, 10, shade);
+    ctx.restore(); return;
+  }
+
+  // short sleeve tee default
+  roundRect(ctx, W*0.2, H*0.27, W*0.6, H*0.55, 10, base);
+  ctx.fillStyle = shade;
+  roundRect(ctx, W*0.08, H*0.32, W*0.18, H*0.18, 8, shade);
+  roundRect(ctx, W*0.74, H*0.32, W*0.18, H*0.18, 8, shade);
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r, fill) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function downloadCanvas(canvas, filename) {
+  const a = document.createElement("a");
+  a.download = filename;
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+}
+
+/* ---------- styles ---------- */
+const page = { fontFamily: "system-ui, Arial", padding: 12, maxWidth: 900, margin: "0 auto" };
+const h1 = { fontSize: 22, fontWeight: 700, margin: "4px 0 10px 0" };
+const panel = { background: "#fff", borderRadius: 12, padding: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", marginBottom: 12 };
+const row = { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 };
+const label = { width: 120, fontSize: 12, color: "#555" };
+const select = { flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid #ccc" };
+const num = { width: 90, padding: "8px 10px", borderRadius: 8, border: "1px solid #ccc" };
+const btn = { marginTop: 6, padding: "10px 14px", borderRadius: 10, background: "#009FDA", color: "white", fontWeight: 600, border: "none" };
+const stage = { position: "relative", background: "linear-gradient(#f7f7f8,#ececee)", borderRadius: 16, boxShadow: "inset 0 1px 6px rgba(0,0,0,0.06)", margin: "8px auto" };
+const sil = { position: "absolute", inset: 0, width: "100%", height: "100%" };
+const readouts = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8, marginTop: 8 };
+const mono = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: 12, paddingLeft: 6, minWidth: 28, textAlign: "right" };
+
+function Info({ label, children }) {
+  return (
+    <div style={{ background: "#fff", padding: 10, borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: .4, color: "#888" }}>{label}</div>
+      <div style={{ fontWeight: 600 }}>{children}</div>
+    </div>
+  );
+}
