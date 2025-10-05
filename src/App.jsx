@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-/** GMS — Image-based mockups (uses /public/mockups if present; falls back to SVG) */
+/** GMS — Image-based mockups (uses /public/mockups if present; falls back to a simple block) */
 
 const GARMENTS = [
   { id: "tee_ss", name: "Short Sleeve Tee", base: { wIn: 20, hIn: 28 }, print: { topIn: 3, wIn: 12, hIn: 16 } },
@@ -25,7 +25,7 @@ const GARMENT_COLORS = [
   { id: "panth", name: "Panthers Blue", hex: "#009FDA" },
 ];
 
-const MOCKUP_SRC = (id) => `/mockups/${id}.png`; // expects mockup images in /public/mockups/
+const MOCKUP_SRC = (id) => `/mockups/${id}.png`; // put images in /public/mockups/, e.g. tee_ss.png
 
 export default function App() {
   const [garmentId, setGarmentId] = useState("tee_ss");
@@ -41,12 +41,14 @@ export default function App() {
   const size = useMemo(() => SIZES.find(s => s.code === sizeCode), [sizeCode]);
   const color = useMemo(() => GARMENT_COLORS.find(c => c.id === colorId) || GARMENT_COLORS[0], [colorId]);
 
+  // garment dimensions (inches)
   const garmentIn = useMemo(() => {
     const w = garment.base.wIn + (size?.dW ?? 0);
     const h = garment.base.hIn + (size?.dW ?? 0) * 1.2;
     return { wIn: w, hIn: h };
   }, [garment, size]);
 
+  // convert inches to pixels
   const garmentPx = useMemo(() => ({ w: garmentIn.wIn * ppi, h: garmentIn.hIn * ppi }), [garmentIn, ppi]);
   const printPx = useMemo(() => ({
     x: (garmentIn.wIn - garment.print.wIn) / 2 * ppi,
@@ -61,6 +63,7 @@ export default function App() {
     return { w, h: w / ratio };
   }, [widthIn, ppi, natural]);
 
+  // upload
   function onUpload(e) {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -71,6 +74,7 @@ export default function App() {
     i.src = url;
   }
 
+  // center graphic on size changes
   useEffect(() => {
     if (!imgUrl) return;
     setPos({
@@ -79,6 +83,7 @@ export default function App() {
     });
   }, [imgUrl, graphicPx.w, graphicPx.h, printPx.x, printPx.y, printPx.w, printPx.h]);
 
+  // drag & resize
   const dragRef = useRef(null);
   const getPoint = (e) => ("touches" in e && e.touches.length)
     ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
@@ -101,6 +106,7 @@ export default function App() {
     setPos({ x: nx, y: ny });
   }
   function endDrag() { dragRef.current = null; onWindowDrag(false); }
+
   function startResize(e) {
     e.stopPropagation(); e.preventDefault();
     const p = getPoint(e);
@@ -116,6 +122,7 @@ export default function App() {
     setWidthIn(Number((newWpx / ppi).toFixed(2)));
   }
   function endResize() { dragRef.current = null; onWindowResize(false); }
+
   function onWindowDrag(on) {
     const m = on ? window.addEventListener : window.removeEventListener;
     m("mousemove", onDrag); m("touchmove", onDrag, { passive: false });
@@ -127,6 +134,7 @@ export default function App() {
     m("mouseup", endResize);  m("touchend", endResize);
   }
 
+  // mockup image loader
   const [mockupImg, setMockupImg] = useState(null);
   useEffect(() => {
     const img = new Image();
@@ -135,37 +143,44 @@ export default function App() {
     img.src = MOCKUP_SRC(garmentId);
   }, [garmentId]);
 
+  // export
   function exportPNG() {
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(garmentPx.w);
     canvas.height = Math.round(garmentPx.h);
     const ctx = canvas.getContext("2d");
 
-    // background (light blue)
+    // always keep background light blue
     ctx.fillStyle = "#EAF6FF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (mockupImg) {
+      // draw mockup
       ctx.drawImage(mockupImg, 0, 0, canvas.width, canvas.height);
+      // apply garment color as multiply over shirt pixels
       ctx.globalCompositeOperation = "multiply";
       ctx.fillStyle = color.hex;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // ensure white sits beneath (keeps outside areas clean)
       ctx.globalCompositeOperation = "destination-over";
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.globalCompositeOperation = "source-over";
     } else {
+      // simple fallback block
       ctx.fillStyle = "#dfe4ea";
-      ctx.fillRect(canvas.width*0.2, canvas.height*0.25, canvas.width*0.6, canvas.height*0.55);
+      ctx.fillRect(canvas.width * 0.2, canvas.height * 0.25, canvas.width * 0.6, canvas.height * 0.55);
     }
 
+    // print area
     ctx.save();
     ctx.strokeStyle = "rgba(0,0,0,.35)";
-    ctx.setLineDash([8,6]);
+    ctx.setLineDash([8, 6]);
     ctx.lineWidth = 2;
     ctx.strokeRect(printPx.x, printPx.y, printPx.w, printPx.h);
     ctx.restore();
 
+    // user art
     if (imgUrl) {
       const img = new Image();
       img.onload = () => {
@@ -222,50 +237,40 @@ export default function App() {
       {/* Preview */}
       <div style={{ overflowX: "auto" }}>
         <div style={{ ...stage, width: garmentPx.w, height: garmentPx.h }}>
-          {/* Always keep background light blue */}
-          <div style={{ position:"absolute", inset:0, background:"#EAF6FF", zIndex:0 }}/>
+          {/* fixed light-blue background */}
+          <div style={{ position:"absolute", inset:0, background:"#EAF6FF", zIndex:0 }} />
 
           {mockupImg ? (
             <>
+              {/* mockup image */}
               <img src={MOCKUP_SRC(garmentId)} alt="mockup"
-                style={{
-                  position:"absolute",
-                  inset:0,
-                  width:"100%",
-                  height:"100%",
-                  objectFit:"contain",
-                  pointerEvents:"none",
-                  zIndex:1
-                }}/>
-              <div style={{
-                position:"absolute",
-                inset:0,
-                background: color.hex,
-                mixBlendMode:"multiply",
-                opacity: 1,
-                pointerEvents:"none",
-                zIndex:2
-              }}/>
+                   style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", zIndex:1 }} />
+
+              {/* color tint over shirt pixels */}
+              <div style={{ position:"absolute", inset:0, background: color.hex, mixBlendMode:"multiply", opacity:1, pointerEvents:"none", zIndex:2 }} />
             </>
           ) : (
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(#f7f7f8,#ececee)", borderRadius:16 }} />
           )}
 
+          {/* guides */}
           <div style={{ position:"absolute", left: garmentPx.w/2, top:0, width:1, height:"100%", background:"rgba(0,0,0,0.06)" }} />
-          <div style={{ position:"absolute", left: printPx.x, top: printPx.y, width: printPx.w, height: printPx.h, border: "2px dashed rgba(100,100,100,0.55)", borderRadius: 8 }} />
+          <div style={{ position:"absolute", left: printPx.x, top: printPx.y, width: printPx.w, height: printPx.h, border:"2px dashed rgba(100,100,100,0.55)", borderRadius:8 }} />
 
+          {/* artwork */}
           {imgUrl && (
             <div onMouseDown={(e)=>startDrag(e)} onTouchStart={(e)=>startDrag(e)}
-                 style={{ position:"absolute", left: pos.x, top: pos.y, width: graphicPx.w, height: graphicPx.h, touchAction: "none", cursor: "move" }}>
-              <img src={imgUrl} alt="art" style={{ width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", userSelect:"none" }}/>
+                 style={{ position:"absolute", left: pos.x, top: pos.y, width: graphicPx.w, height: graphicPx.h, touchAction:"none", cursor:"move" }}>
+              <img src={imgUrl} alt="art" style={{ width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", userSelect:"none" }} />
               <div onMouseDown={(e)=>startResize(e)} onTouchStart={(e)=>startResize(e)}
                    style={{ position:"absolute", right:-8, bottom:-8, width:20, height:20, background:"#009FDA", borderRadius:10, border:"2px solid white", boxShadow:"0 1px 4px rgba(0,0,0,0.25)", touchAction:"none" }}
-                   title="Drag to resize"/>
+                   title="Drag to resize" />
             </div>
           )}
         </div>
       </div>
 
+      {/* readouts */}
       <div style={readouts}>
         <Info label="Garment (in)">{garmentIn.wIn.toFixed(1)} × {garmentIn.hIn.toFixed(1)}</Info>
         <Info label="Print Area (in)">{garment.print.wIn.toFixed(1)} × {garment.print.hIn.toFixed(1)}</Info>
@@ -282,20 +287,32 @@ function Row({ label, children }) {
 }
 function Info({ label, children }) {
   return (
-    <div style={{ background: "#fff", padding: 10, borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: .4, color: "#888" }}>{label}</div>
-      <div style={{ fontWeight: 600 }}>{children}</div>
+    <div style={{ background:"#fff", padding:10, borderRadius:10, boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
+      <div style={{ fontSize:10, textTransform:"uppercase", letterSpacing:.4, color:"#888" }}>{label}</div>
+      <div style={{ fontWeight:600 }}>{children}</div>
     </div>
   );
 }
 
 /* styles */
-const page = { fontFamily: "system-ui, Arial", padding: 12, maxWidth: 900, margin: "0 auto" };
-const h1 = { fontSize: 22, fontWeight: 700, margin: "4px 0 10px 0" };
-const panel = { background: "#fff", borderRadius: 12, padding: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", marginBottom: 12 };
-const row = { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 };
-const lab = { width: 120, fontSize: 12, color: "#555" };
-const select = { flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid #ccc" };
-const num = { width: 90, padding: "8px 10px", borderRadius: 8, border: "1px solid #ccc" };
-const btn = { marginTop: 6, padding: "10px 14px", borderRadius: 10, background: "#009FDA", color: "white", fontWeight: 600, border: "none" };
-const stage = { position: "relative", background: "#EAF6FF", borderRadius: 16, boxShadow: "
+const page = { fontFamily:"system-ui, Arial", padding:12, maxWidth:900, margin:"0 auto" };
+const h1 = { fontSize:22, fontWeight:700, margin:"4px 0 10px 0" };
+const panel = { background:"#fff", borderRadius:12, padding:12, boxShadow:"0 1px 4px rgba(0,0,0,0.06)", marginBottom:12 };
+const row = { display:"flex", alignItems:"center", gap:8, marginBottom:8 };
+const lab = { width:120, fontSize:12, color:"#555" };
+const select = { flex:1, padding:"8px 10px", borderRadius:8, border:"1px solid #ccc" };
+const num = { width:90, padding:"8px 10px", borderRadius:8, border:"1px solid #ccc" };
+const btn = { marginTop:6, padding:"10px 14px", borderRadius:10, background:"#009FDA", color:"white", fontWeight:600, border:"none" };
+const stage = { position:"relative", background:"#EAF6FF", borderRadius:16, boxShadow:"inset 0 1px 6px rgba(0,0,0,0.06)", margin:"8px auto" };
+const readouts = { display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:8, marginTop:8 };
+const mono = { fontFamily:"ui-monospace, Menlo, Consolas, monospace", fontSize:12, paddingLeft:6, minWidth:28, textAlign:"right" };
+
+/* download helper */
+function downloadCanvas(canvas, filename) {
+  const a = document.createElement("a");
+  a.href = canvas.toDataURL("image/png");
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
