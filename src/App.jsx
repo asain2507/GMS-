@@ -25,7 +25,7 @@ const GARMENT_COLORS = [
   { id: "panth", name: "Panthers Blue", hex: "#009FDA" },
 ];
 
-const MOCKUP_SRC = (id) => `/mockups/${id}.png`; // put files in public/mockups/
+const MOCKUP_SRC = (id) => `/mockups/${id}.png`; // expects mockup images in /public/mockups/
 
 export default function App() {
   const [garmentId, setGarmentId] = useState("tee_ss");
@@ -41,12 +41,12 @@ export default function App() {
   const size = useMemo(() => SIZES.find(s => s.code === sizeCode), [sizeCode]);
   const color = useMemo(() => GARMENT_COLORS.find(c => c.id === colorId) || GARMENT_COLORS[0], [colorId]);
 
-  // derived inches → pixels
   const garmentIn = useMemo(() => {
     const w = garment.base.wIn + (size?.dW ?? 0);
     const h = garment.base.hIn + (size?.dW ?? 0) * 1.2;
     return { wIn: w, hIn: h };
   }, [garment, size]);
+
   const garmentPx = useMemo(() => ({ w: garmentIn.wIn * ppi, h: garmentIn.hIn * ppi }), [garmentIn, ppi]);
   const printPx = useMemo(() => ({
     x: (garmentIn.wIn - garment.print.wIn) / 2 * ppi,
@@ -61,7 +61,6 @@ export default function App() {
     return { w, h: w / ratio };
   }, [widthIn, ppi, natural]);
 
-  // image upload
   function onUpload(e) {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -72,7 +71,6 @@ export default function App() {
     i.src = url;
   }
 
-  // center graphic when dims change
   useEffect(() => {
     if (!imgUrl) return;
     setPos({
@@ -81,7 +79,6 @@ export default function App() {
     });
   }, [imgUrl, graphicPx.w, graphicPx.h, printPx.x, printPx.y, printPx.w, printPx.h]);
 
-  // drag & resize
   const dragRef = useRef(null);
   const getPoint = (e) => ("touches" in e && e.touches.length)
     ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
@@ -130,13 +127,12 @@ export default function App() {
     m("mouseup", endResize);  m("touchend", endResize);
   }
 
-  // load mockup image (if available)
   const [mockupImg, setMockupImg] = useState(null);
   useEffect(() => {
     const img = new Image();
     img.onload = () => setMockupImg(img);
     img.onerror = () => setMockupImg(null);
-    img.src = MOCKUP_SRC(garmentId); // expects a PNG in /public/mockups/
+    img.src = MOCKUP_SRC(garmentId);
   }, [garmentId]);
 
   function exportPNG() {
@@ -145,28 +141,24 @@ export default function App() {
     canvas.height = Math.round(garmentPx.h);
     const ctx = canvas.getContext("2d");
 
-    // background
-    ctx.fillStyle = "#f5f6f7";
+    // background (light blue)
+    ctx.fillStyle = "#EAF6FF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw mockup or fallback vector
     if (mockupImg) {
       ctx.drawImage(mockupImg, 0, 0, canvas.width, canvas.height);
-      // tint
       ctx.globalCompositeOperation = "multiply";
       ctx.fillStyle = color.hex;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.globalCompositeOperation = "destination-over"; // keep tint but preserve alpha holes
+      ctx.globalCompositeOperation = "destination-over";
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.globalCompositeOperation = "source-over";
     } else {
-      // simple fallback: soft tee panel
       ctx.fillStyle = "#dfe4ea";
       ctx.fillRect(canvas.width*0.2, canvas.height*0.25, canvas.width*0.6, canvas.height*0.55);
     }
 
-    // print area (dashed)
     ctx.save();
     ctx.strokeStyle = "rgba(0,0,0,.35)";
     ctx.setLineDash([8,6]);
@@ -174,7 +166,6 @@ export default function App() {
     ctx.strokeRect(printPx.x, printPx.y, printPx.w, printPx.h);
     ctx.restore();
 
-    // your artwork
     if (imgUrl) {
       const img = new Image();
       img.onload = () => {
@@ -231,24 +222,38 @@ export default function App() {
       {/* Preview */}
       <div style={{ overflowX: "auto" }}>
         <div style={{ ...stage, width: garmentPx.w, height: garmentPx.h }}>
-          {/* mockup behind */}
+          {/* Always keep background light blue */}
+          <div style={{ position:"absolute", inset:0, background:"#EAF6FF", zIndex:0 }}/>
+
           {mockupImg ? (
             <>
-              <img src={MOCKUP_SRC(garmentId)} alt="mockup" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", pointerEvents:"none" }} />
+              <img src={MOCKUP_SRC(garmentId)} alt="mockup"
+                style={{
+                  position:"absolute",
+                  inset:0,
+                  width:"100%",
+                  height:"100%",
+                  objectFit:"contain",
+                  pointerEvents:"none",
+                  zIndex:1
+                }}/>
               <div style={{
-                position:"absolute", inset:0, background: color.hex,
-                mixBlendMode:"multiply", opacity: 1, pointerEvents:"none"
+                position:"absolute",
+                inset:0,
+                background: color.hex,
+                mixBlendMode:"multiply",
+                opacity: 1,
+                pointerEvents:"none",
+                zIndex:2
               }}/>
             </>
           ) : (
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(#f7f7f8,#ececee)", borderRadius:16 }} />
           )}
 
-          {/* center guide + print area */}
           <div style={{ position:"absolute", left: garmentPx.w/2, top:0, width:1, height:"100%", background:"rgba(0,0,0,0.06)" }} />
           <div style={{ position:"absolute", left: printPx.x, top: printPx.y, width: printPx.w, height: printPx.h, border: "2px dashed rgba(100,100,100,0.55)", borderRadius: 8 }} />
 
-          {/* artwork */}
           {imgUrl && (
             <div onMouseDown={(e)=>startDrag(e)} onTouchStart={(e)=>startDrag(e)}
                  style={{ position:"absolute", left: pos.x, top: pos.y, width: graphicPx.w, height: graphicPx.h, touchAction: "none", cursor: "move" }}>
@@ -261,7 +266,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Readouts */}
       <div style={readouts}>
         <Info label="Garment (in)">{garmentIn.wIn.toFixed(1)} × {garmentIn.hIn.toFixed(1)}</Info>
         <Info label="Print Area (in)">{garment.print.wIn.toFixed(1)} × {garment.print.hIn.toFixed(1)}</Info>
@@ -294,6 +298,4 @@ const lab = { width: 120, fontSize: 12, color: "#555" };
 const select = { flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid #ccc" };
 const num = { width: 90, padding: "8px 10px", borderRadius: 8, border: "1px solid #ccc" };
 const btn = { marginTop: 6, padding: "10px 14px", borderRadius: 10, background: "#009FDA", color: "white", fontWeight: 600, border: "none" };
-const stage = { position: "relative", background: "#f0f2f5", borderRadius: 16, boxShadow: "inset 0 1px 6px rgba(0,0,0,0.06)", margin: "8px auto" };
-const readouts = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8, marginTop: 8 };
-const mono = { fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: 12, paddingLeft: 6, minWidth: 28, textAlign: "right" };
+const stage = { position: "relative", background: "#EAF6FF", borderRadius: 16, boxShadow: "
