@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-/** GMS — Image-based mockups (uses /public/mockups if present; falls back to a simple block) */
+/** GMS — Image-based mockups using /public/mockups/<id>.png
+ *  Fixes:
+ *   - Background switches per color (dark bg for light shirts/blue; white bg for black/charcoal)
+ *   - Auto-scales preview to fit on screen; export remains full-res
+ */
 
 const GARMENTS = [
   { id: "tee_ss", name: "Short Sleeve Tee", base: { wIn: 20, hIn: 28 }, print: { topIn: 3, wIn: 12, hIn: 16 } },
@@ -17,15 +21,20 @@ const SIZES = [
 ];
 
 const GARMENT_COLORS = [
-  { id: "white", name: "White",      hex: "#ffffff" },
+  { id: "white", name: "White",         hex: "#ffffff" },
   { id: "heath", name: "Light Heather", hex: "#e9ecef" },
-  { id: "gray",  name: "Mid Gray",   hex: "#cbd3da" },
-  { id: "char",  name: "Charcoal",   hex: "#9aa7b4" },
-  { id: "black", name: "Black",      hex: "#111111" },
+  { id: "gray",  name: "Mid Gray",      hex: "#cbd3da" },
+  { id: "char",  name: "Charcoal",      hex: "#9aa7b4" },
+  { id: "black", name: "Black",         hex: "#111111" },
   { id: "panth", name: "Panthers Blue", hex: "#009FDA" },
 ];
 
-const MOCKUP_SRC = (id) => `/mockups/${id}.png`; // put images in /public/mockups/, e.g. tee_ss.png
+// expect PNG files in /public/mockups/, e.g. /mockups/tee_ss.png
+const MOCKUP_SRC = (id) => `/mockups/${id}.png`;
+
+// UI colors
+const DARK_BG = "#1f2937"; // dark gray
+const LIGHT_BG = "#ffffff"; // white
 
 export default function App() {
   const [garmentId, setGarmentId] = useState("tee_ss");
@@ -37,18 +46,24 @@ export default function App() {
   const [widthIn, setWidthIn] = useState(10);
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
+  // Background choice per your rules
+  const bgColor = useMemo(() => {
+    // white background for Black + Charcoal; dark bg for everything else
+    return (colorId === "black" || colorId === "char") ? LIGHT_BG : DARK_BG;
+  }, [colorId]);
+
   const garment = useMemo(() => GARMENTS.find(g => g.id === garmentId), [garmentId]);
   const size = useMemo(() => SIZES.find(s => s.code === sizeCode), [sizeCode]);
   const color = useMemo(() => GARMENT_COLORS.find(c => c.id === colorId) || GARMENT_COLORS[0], [colorId]);
 
-  // garment dimensions (inches)
+  // garment size (inches)
   const garmentIn = useMemo(() => {
     const w = garment.base.wIn + (size?.dW ?? 0);
     const h = garment.base.hIn + (size?.dW ?? 0) * 1.2;
     return { wIn: w, hIn: h };
   }, [garment, size]);
 
-  // convert inches to pixels
+  // pixels
   const garmentPx = useMemo(() => ({ w: garmentIn.wIn * ppi, h: garmentIn.hIn * ppi }), [garmentIn, ppi]);
   const printPx = useMemo(() => ({
     x: (garmentIn.wIn - garment.print.wIn) / 2 * ppi,
@@ -74,7 +89,7 @@ export default function App() {
     i.src = url;
   }
 
-  // center graphic on size changes
+  // center art when dims change
   useEffect(() => {
     if (!imgUrl) return;
     setPos({
@@ -83,7 +98,7 @@ export default function App() {
     });
   }, [imgUrl, graphicPx.w, graphicPx.h, printPx.x, printPx.y, printPx.w, printPx.h]);
 
-  // drag & resize
+  // drag/resize
   const dragRef = useRef(null);
   const getPoint = (e) => ("touches" in e && e.touches.length)
     ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
@@ -143,38 +158,53 @@ export default function App() {
     img.src = MOCKUP_SRC(garmentId);
   }, [garmentId]);
 
-  // export
+  // ==== preview auto-scale (fit screen) ====
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    function recompute() {
+      // available width = viewport minus paddings (~24)
+      const availW = Math.max(280, (window.innerWidth || 360) - 24);
+      const maxH = 560; // cap preview height for phones
+      const sW = availW / garmentPx.w;
+      const sH = maxH / garmentPx.h;
+      const s = Math.min(1, sW, sH); // never upscale above 1
+      setScale(s);
+    }
+    recompute();
+    window.addEventListener("resize", recompute);
+    return () => window.removeEventListener("resize", recompute);
+  }, [garmentPx.w, garmentPx.h]);
+
+  // export (always full-res)
   function exportPNG() {
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(garmentPx.w);
     canvas.height = Math.round(garmentPx.h);
     const ctx = canvas.getContext("2d");
 
-    // always keep background light blue
-    ctx.fillStyle = "#EAF6FF";
+    // background per rules
+    ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (mockupImg) {
-      // draw mockup
       ctx.drawImage(mockupImg, 0, 0, canvas.width, canvas.height);
-      // apply garment color as multiply over shirt pixels
       ctx.globalCompositeOperation = "multiply";
       ctx.fillStyle = color.hex;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // ensure white sits beneath (keeps outside areas clean)
+      // ensure areas under transparency are neutral white so multiply doesn't tint the bg artifacts
       ctx.globalCompositeOperation = "destination-over";
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.globalCompositeOperation = "source-over";
     } else {
-      // simple fallback block
       ctx.fillStyle = "#dfe4ea";
       ctx.fillRect(canvas.width * 0.2, canvas.height * 0.25, canvas.width * 0.6, canvas.height * 0.55);
     }
 
-    // print area
+    // print area guide
     ctx.save();
-    ctx.strokeStyle = "rgba(0,0,0,.35)";
+    ctx.strokeStyle = "rgba(255,255,255,.65)";
+    if (bgColor === LIGHT_BG) ctx.strokeStyle = "rgba(0,0,0,.35)";
     ctx.setLineDash([8, 6]);
     ctx.lineWidth = 2;
     ctx.strokeRect(printPx.x, printPx.y, printPx.w, printPx.h);
@@ -236,37 +266,47 @@ export default function App() {
 
       {/* Preview */}
       <div style={{ overflowX: "auto" }}>
-        <div style={{ ...stage, width: garmentPx.w, height: garmentPx.h }}>
-          {/* fixed light-blue background */}
-          <div style={{ position:"absolute", inset:0, background:"#EAF6FF", zIndex:0 }} />
+        {/* wrapper sets the scaled width so it fits phone width */}
+        <div style={{ width: (garmentPx.w * scale) + "px" }}>
+          <div
+            style={{
+              ...stage,
+              width: garmentPx.w,
+              height: garmentPx.h,
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+              background: bgColor
+            }}
+          >
+            {/* mockup & color overlay */}
+            {mockupImg ? (
+              <>
+                <img src={MOCKUP_SRC(garmentId)} alt="mockup"
+                     style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", zIndex:1 }} />
+                <div style={{ position:"absolute", inset:0, background: color.hex, mixBlendMode:"multiply", opacity:1, pointerEvents:"none", zIndex:2 }} />
+              </>
+            ) : (
+              <div style={{ position:"absolute", inset:0, background:"linear-gradient(#f7f7f8,#ececee)", borderRadius:16 }} />
+            )}
 
-          {mockupImg ? (
-            <>
-              {/* mockup image */}
-              <img src={MOCKUP_SRC(garmentId)} alt="mockup"
-                   style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", zIndex:1 }} />
+            {/* guides (choose contrast based on bg) */}
+            <div style={{ position:"absolute", left: garmentPx.w/2, top:0, width:1, height:"100%",
+                          background: bgColor === LIGHT_BG ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.18)" }} />
+            <div style={{ position:"absolute", left: printPx.x, top: printPx.y, width: printPx.w, height: printPx.h,
+                          border: bgColor === LIGHT_BG ? "2px dashed rgba(100,100,100,0.55)" : "2px dashed rgba(255,255,255,0.65)",
+                          borderRadius: 8 }} />
 
-              {/* color tint over shirt pixels */}
-              <div style={{ position:"absolute", inset:0, background: color.hex, mixBlendMode:"multiply", opacity:1, pointerEvents:"none", zIndex:2 }} />
-            </>
-          ) : (
-            <div style={{ position:"absolute", inset:0, background:"linear-gradient(#f7f7f8,#ececee)", borderRadius:16 }} />
-          )}
-
-          {/* guides */}
-          <div style={{ position:"absolute", left: garmentPx.w/2, top:0, width:1, height:"100%", background:"rgba(0,0,0,0.06)" }} />
-          <div style={{ position:"absolute", left: printPx.x, top: printPx.y, width: printPx.w, height: printPx.h, border:"2px dashed rgba(100,100,100,0.55)", borderRadius:8 }} />
-
-          {/* artwork */}
-          {imgUrl && (
-            <div onMouseDown={(e)=>startDrag(e)} onTouchStart={(e)=>startDrag(e)}
-                 style={{ position:"absolute", left: pos.x, top: pos.y, width: graphicPx.w, height: graphicPx.h, touchAction:"none", cursor:"move" }}>
-              <img src={imgUrl} alt="art" style={{ width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", userSelect:"none" }} />
-              <div onMouseDown={(e)=>startResize(e)} onTouchStart={(e)=>startResize(e)}
-                   style={{ position:"absolute", right:-8, bottom:-8, width:20, height:20, background:"#009FDA", borderRadius:10, border:"2px solid white", boxShadow:"0 1px 4px rgba(0,0,0,0.25)", touchAction:"none" }}
-                   title="Drag to resize" />
-            </div>
-          )}
+            {/* artwork */}
+            {imgUrl && (
+              <div onMouseDown={(e)=>startDrag(e)} onTouchStart={(e)=>startDrag(e)}
+                   style={{ position:"absolute", left: pos.x, top: pos.y, width: graphicPx.w, height: graphicPx.h, touchAction:"none", cursor:"move" }}>
+                <img src={imgUrl} alt="art" style={{ width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", userSelect:"none" }} />
+                <div onMouseDown={(e)=>startResize(e)} onTouchStart={(e)=>startResize(e)}
+                     style={{ position:"absolute", right:-8, bottom:-8, width:20, height:20, background:"#009FDA", borderRadius:10, border:"2px solid white", boxShadow:"0 1px 4px rgba(0,0,0,0.25)", touchAction:"none" }}
+                     title="Drag to resize" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -281,7 +321,7 @@ export default function App() {
   );
 }
 
-/* ——— UI bits ——— */
+/* UI helpers */
 function Row({ label, children }) {
   return <div style={row}><label style={lab}>{label}</label><div style={{display:"flex",gap:8,alignItems:"center",flex:1}}>{children}</div></div>;
 }
@@ -301,9 +341,9 @@ const panel = { background:"#fff", borderRadius:12, padding:12, boxShadow:"0 1px
 const row = { display:"flex", alignItems:"center", gap:8, marginBottom:8 };
 const lab = { width:120, fontSize:12, color:"#555" };
 const select = { flex:1, padding:"8px 10px", borderRadius:8, border:"1px solid #ccc" };
-const num = { width:90, padding:"8px 10px", borderRadius:8, border:"1px solid #ccc" };
-const btn = { marginTop:6, padding:"10px 14px", borderRadius:10, background:"#009FDA", color:"white", fontWeight:600, border:"none" };
-const stage = { position:"relative", background:"#EAF6FF", borderRadius:16, boxShadow:"inset 0 1px 6px rgba(0,0,0,0.06)", margin:"8px auto" };
+const num   = { width:90, padding:"8px 10px", borderRadius:8, border:"1px solid #ccc" };
+const btn   = { marginTop:6, padding:"10px 14px", borderRadius:10, background:"#009FDA", color:"white", fontWeight:600, border:"none" };
+const stage = { position:"relative", borderRadius:16, boxShadow:"inset 0 1px 6px rgba(0,0,0,0.06)", margin:"8px 0" };
 const readouts = { display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:8, marginTop:8 };
 const mono = { fontFamily:"ui-monospace, Menlo, Consolas, monospace", fontSize:12, paddingLeft:6, minWidth:28, textAlign:"right" };
 
